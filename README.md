@@ -1,14 +1,14 @@
-# GitChat
+# GitGPT
 
 简体中文 | [English](README_EN.md)
 
-GitChat 是一个基于自然语言与 Git 交互的命令行工具，旨在简化 Git 操作，提高工作效率。它使用 AI 技术理解自然语言指令，帮助开发者更高效地管理代码变更和版本历史。
+GitGPT 是一个基于自然语言与 Git 交互的命令行工具，旨在简化 Git 操作，提高工作效率。它使用 AI 技术理解自然语言指令，帮助开发者更高效地管理代码变更和版本历史。
 
 <div align="center">
 
-[![Release](https://img.shields.io/github/v/release/go-coders/gitchat)](https://github.com/go-coders/gitchat/releases)
-[![Go Report Card](https://goreportcard.com/badge/github.com/go-coders/gitchat)](https://goreportcard.com/report/github.com/go-coders/gitchat)
-[![License](https://img.shields.io/github/license/go-coders/gitchat)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/go-coders/git_gpt)](https://github.com/go-coders/git_gpt/releases)
+[![Go Report Card](https://goreportcard.com/badge/github.com/go-coders/git_gpt)](https://goreportcard.com/report/github.com/go-coders/git_gpt)
+[![License](https://img.shields.io/github/license/go-coders/git_gpt)](LICENSE)
 
 </div>
 
@@ -17,19 +17,19 @@ GitChat 是一个基于自然语言与 Git 交互的命令行工具，旨在简�
 ### 使用 Go Install (需要 Go 1.20+)
 
 ```bash
-go install github.com/go-coders/gitchat/cmd/gitchat@latest
+go install github.com/go-coders/git_gpt/cmd/ggpt@latest
 ```
 
 ### 下载预编译二进制文件
 
-前往 [Releases](https://github.com/go-coders/gitchat/releases) 页面，下载适用于您操作系统的可执行文件，并将其添加到系统的 PATH 中。
+前往 [Releases](https://github.com/go-coders/git_gpt/releases) 页面，下载适用于您操作系统的可执行文件，并将其添加到系统的 PATH 中。
 
 ## 🚀 快速开始
 
 1. 安装完成后，在终端中运行：
 
    ```bash
-   gitchat
+   ggpt
    ```
 
 2. 首次运行时，会启动配置向导。你需要提供：
@@ -39,10 +39,10 @@ go install github.com/go-coders/gitchat/cmd/gitchat@latest
    - API 基础 URL（默认：https://api.openai.com/v1）
    - 最大 token 数（默认：4000）
 
-3. 配置完成后，即可以看到 GitChat 的欢迎界面！
+3. 配置完成后，即可以看到 GitGPT 的欢迎界面！
 
 ```bash
-🤖 Welcome to GitChat!
+🤖 Welcome to GitGPT!
 ------------------------
 
   Natural Language  - Use natural language to interact with Git
@@ -92,7 +92,7 @@ go install github.com/go-coders/gitchat/cmd/gitchat@latest
 > commit
 ```
 
-GitChat 将分析你的更改并建议合适的提交信息：
+GitGPT 将分析你的更改并建议合适的提交信息：
 
 ```bash
 📄 已暂存的文件:
@@ -116,7 +116,7 @@ GitChat 将分析你的更改并建议合适的提交信息：
 
 ## 📬 联系与支持
 
-- 在 [Issues](https://github.com/go-coders/gitchat/issues) 页面报告问题或提出功能建议
+- 在 [Issues](https://github.com/go-coders/git_gpt/issues) 页面报告问题或提出功能建议
 - 如果觉得有用，请给我们一个 Star！
 
 ---

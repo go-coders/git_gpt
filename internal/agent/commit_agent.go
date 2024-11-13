@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/go-coders/gitchat/internal/git"
+	"github.com/go-coders/git_gpt/internal/git"
 )
 
 type CommitAgent struct {

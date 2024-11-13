@@ -1,4 +1,4 @@
-module github.com/go-coders/gitchat
+module github.com/go-coders/git_gpt
 
 go 1.20
 

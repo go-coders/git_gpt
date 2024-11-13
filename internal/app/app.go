@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/go-coders/gitchat/internal/agent"
-	"github.com/go-coders/gitchat/internal/config"
-	"github.com/go-coders/gitchat/internal/display"
-	"github.com/go-coders/gitchat/internal/git"
-	"github.com/go-coders/gitchat/internal/llm"
-	"github.com/go-coders/gitchat/pkg/utils"
+	"github.com/go-coders/git_gpt/internal/agent"
+	"github.com/go-coders/git_gpt/internal/config"
+	"github.com/go-coders/git_gpt/internal/display"
+	"github.com/go-coders/git_gpt/internal/git"
+	"github.com/go-coders/git_gpt/internal/llm"
+	"github.com/go-coders/git_gpt/pkg/utils"
 )
 
 // Application represents the main application instance with its dependencies

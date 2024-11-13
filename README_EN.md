@@ -1,14 +1,14 @@
-# GitChat
+# GitGPT
 
 English | [简体中文](README.md)
 
-GitChat is a command-line tool for interacting with Git using natural language, designed to simplify Git operations and improve productivity. It leverages AI technology to understand natural language instructions, helping developers manage code changes and version history more efficiently.
+GitGPT is a command-line tool for interacting with Git using natural language, designed to simplify Git operations and improve productivity. It leverages AI technology to understand natural language instructions, helping developers manage code changes and version history more efficiently.
 
 <div align="center">
 
-[![Release](https://img.shields.io/github/v/release/go-coders/gitchat)](https://github.com/go-coders/gitchat/releases)
-[![Go Report Card](https://goreportcard.com/badge/github.com/go-coders/gitchat)](https://goreportcard.com/report/github.com/go-coders/gitchat)
-[![License](https://img.shields.io/github/license/go-coders/gitchat)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/go-coders/git_gpt)](https://github.com/go-coders/git_gpt/releases)
+[![Go Report Card](https://goreportcard.com/badge/github.com/go-coders/git_gpt)](https://goreportcard.com/report/github.com/go-coders/git_gpt)
+[![License](https://img.shields.io/github/license/go-coders/git_gpt)](LICENSE)
 
 </div>
 
@@ -17,19 +17,19 @@ GitChat is a command-line tool for interacting with Git using natural language, 
 ### Using Go Install (requires Go 1.20+)
 
 ```bash
-go install github.com/go-coders/gitchat/cmd/gitchat@latest
+go install github.com/go-coders/git_gpt/cmd/ggpt@latest
 ```
 
 ### Download Pre-compiled Binary
 
-Go to the [Releases](https://github.com/go-coders/gitchat/releases) page, download the executable file suitable for your operating system, and add it to the system's PATH.
+Go to the [Releases](https://github.com/go-coders/git_gpt/releases) page, download the executable file suitable for your operating system, and add it to the system's PATH.
 
 ## 🚀 Quick Start
 
 1. After installation, run in your terminal:
 
    ```bash
-   gitchat
+   ggpt
    ```
 
 2. On first run, the configuration wizard will start. You'll need to provide:
@@ -39,10 +39,10 @@ Go to the [Releases](https://github.com/go-coders/gitchat/releases) page, downlo
    - API base URL (default: https://api.openai.com/v1)
    - Maximum tokens (default: 4000)
 
-3. Once configured, you'll see the GitChat welcome screen!
+3. Once configured, you'll see the GitGPT welcome screen!
 
 ```bash
-🤖 Welcome to GitChat!
+🤖 Welcome to GitGPT!
 ------------------------
 
   Natural Language  - Use natural language to interact with Git
@@ -92,7 +92,7 @@ When you want to commit your changes:
 > commit
 ```
 
-GitChat will analyze your changes and suggest appropriate commit messages:
+GitGPT will analyze your changes and suggest appropriate commit messages:
 
 ```bash
 📄 Staged files:
@@ -117,7 +117,7 @@ Please select a message (1-3), enter 'r' to regenerate, enter 'c' to cancel, or 
 
 ## 📬 Contact & Support
 
-- Report issues or suggest features on the [Issues](https://github.com/go-coders/gitchat/issues) page
+- Report issues or suggest features on the [Issues](https://github.com/go-coders/git_gpt/issues) page
 - If you find it useful, please give us a Star!
 
 ---

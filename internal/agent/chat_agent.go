@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-coders/gitchat/pkg/apierrors"
+	"github.com/go-coders/git_gpt/pkg/apierrors"
 )
 
 type Agent struct {

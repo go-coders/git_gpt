@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-coders/gitchat/internal/config"
-	"github.com/go-coders/gitchat/pkg/apierrors"
+	"github.com/go-coders/git_gpt/internal/config"
+	"github.com/go-coders/git_gpt/pkg/apierrors"
 )
 
 type ConfigWizard struct {

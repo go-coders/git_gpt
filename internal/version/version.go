@@ -55,7 +55,7 @@ func InitFromBuildInfo(info *debug.BuildInfo) {
 
 	// Get version from dependencies if not found in main
 	for _, dep := range info.Deps {
-		if dep.Path == "github.com/go-coders/gitchat" {
+		if dep.Path == "github.com/go-coders/git_gpt" {
 			Version = strings.TrimPrefix(dep.Version, "v")
 			break
 		}

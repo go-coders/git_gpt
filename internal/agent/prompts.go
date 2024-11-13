@@ -7,7 +7,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/go-coders/gitchat/internal/git"
+	"github.com/go-coders/git_gpt/internal/git"
 )
 
 // TemplateData holds all possible data that can be used in templates

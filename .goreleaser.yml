@@ -14,13 +14,13 @@ builds:
     goarch:
       - amd64
       - arm64
-    main: ./cmd/gitchat/main.go  # Updated path
+    main: ./cmd/ggpt/main.go  # Updated path
     ldflags:
       - -s -w
-      - -X github.com/go-coders/gitchat/internal/version.Version={{.Version}}
-      - -X github.com/go-coders/gitchat/internal/version.BuildTime={{.Date}}
-      - -X github.com/go-coders/gitchat/internal/version.GitCommit={{.FullCommit}}
-    binary: gitchat
+      - -X github.com/go-coders/git_gpt/internal/version.Version={{.Version}}
+      - -X github.com/go-coders/git_gpt/internal/version.BuildTime={{.Date}}
+      - -X github.com/go-coders/git_gpt/internal/version.GitCommit={{.FullCommit}}
+    binary: ggpt
 
 archives:
   - format: tar.gz

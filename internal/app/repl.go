@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/go-coders/gitchat/internal/version"
+	"github.com/go-coders/git_gpt/internal/version"
 )
 
 type REPL struct {
