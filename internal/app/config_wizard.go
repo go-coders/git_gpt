@@ -9,21 +9,17 @@ import (
 	"strings"
 
 	"github.com/go-coders/gitchat/internal/config"
-	"github.com/go-coders/gitchat/internal/llm"
 	"github.com/go-coders/gitchat/pkg/apierrors"
-	"github.com/go-coders/gitchat/pkg/utils"
 )
 
 type ConfigWizard struct {
 	config *config.Config
-	logger utils.Logger
 	reader *bufio.Reader
 }
 
-func NewConfigWizard(cfg *config.Config, logger utils.Logger) *ConfigWizard {
+func NewConfigWizard(cfg *config.Config) *ConfigWizard {
 	return &ConfigWizard{
 		config: cfg,
-		logger: logger,
 		reader: bufio.NewReader(os.Stdin),
 	}
 }
@@ -52,10 +48,6 @@ func (w *ConfigWizard) Run() error {
 		if err := w.handlePrompt(p); err != nil {
 			return err
 		}
-	}
-
-	if err := llm.ValidateKey(w.config.LLM.APIKey, w.config.LLM.BaseURL, w.config.LLM.Model); err != nil {
-		return fmt.Errorf("failed to validate API key: %w", err)
 	}
 	if err := w.config.Save(); err != nil {
 		return fmt.Errorf("failed to save configuration: %w", err)

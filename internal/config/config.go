@@ -1,10 +1,19 @@
+// internal/config/config.go
 package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+)
+
+const (
+	DefaultModel     = "gpt-4o"
+	DefaultMaxTokens = 4000
+	DefaultBaseURL   = "https://api.openai.com/v1"
+	ConfigFileName   = "config.json"
 )
 
 type Config struct {
@@ -19,50 +28,68 @@ type LLMConfig struct {
 	MaxTokens int    `json:"max_tokens"`
 }
 
-const (
-	DefaultModel     = "gpt-4o-mini"
-	DefaultMaxTokens = 4000
-	DefaultBaseURL   = "https://api.openai.com/v1"
-	ConfigFileName   = "config.json"
-)
+// Load loads the configuration from the specified path
+// If path is empty, it uses the default config location
+func Load(path ...string) (*Config, error) {
+	configPath := getConfigPath(path...)
 
-func Load() (*Config, error) {
 	cfg := &Config{
 		LLM: LLMConfig{
 			Model:     DefaultModel,
 			BaseURL:   DefaultBaseURL,
 			MaxTokens: DefaultMaxTokens,
 		},
+		ConfigPath: configPath,
 	}
-	configPath := getConfigPath()
-	cfg.ConfigPath = configPath
-	if _, err := os.Stat(configPath); err == nil {
-		data, err := os.ReadFile(configPath)
-		if err != nil {
-			return nil, err
+
+	if err := cfg.loadFromFile(configPath); err != nil {
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("failed to load config: %w", err)
 		}
-		if err := json.Unmarshal(data, cfg); err != nil {
-			return nil, err
-		}
+		// If file doesn't exist, return default config
+		return cfg, nil
 	}
+
 	return cfg, nil
+}
+
+func (c *Config) loadFromFile(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(data, c); err != nil {
+		return fmt.Errorf("invalid config file format: %w", err)
+	}
+
+	return nil
 }
 
 func (c *Config) Save() error {
 	data, err := json.MarshalIndent(c, "", "    ")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	configPath := getConfigPath()
-	if err := os.MkdirAll(filepath.Dir(configPath), 0700); err != nil {
-		return err
+	dir := filepath.Dir(c.ConfigPath)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	return os.WriteFile(configPath, data, 0600)
+	if err := os.WriteFile(c.ConfigPath, data, 0600); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
 }
 
-func getConfigPath() string {
+// getConfigPath determines the configuration file path
+func getConfigPath(customPath ...string) string {
+	if len(customPath) > 0 && customPath[0] != "" {
+		return customPath[0]
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return filepath.Join(".", ConfigFileName)

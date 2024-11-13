@@ -11,34 +11,6 @@ import (
 	"github.com/fatih/color"
 )
 
-type Manager interface {
-	ShowInfo(message string)
-	ShowError(message string)
-	ShowSuccess(message string)
-	ShowWarning(message string)
-	StartSpinner(message string)
-	StopSpinner()
-	ShowCommand(command string)
-	ShowWelcome()
-	ShowPrompt(pwd, branch string)
-	ShowSection(section Section)
-	ShowNumberedList(items []ListItem)
-}
-
-type Formatter interface {
-	FormatPrompt(pwd, branch string) string
-	FormatSuccess(message string) string
-	FormatError(message string) string
-	FormatInfo(message string) string
-	FormatWarning(message string) string
-	FormatWelcome() string
-	FormatCommand(command string) string
-	FormatSectionTitle(title string) string
-	FormatSectionContent(content string) string
-	FormatListDescription(description string) string
-	FormatListItem(number int, content string) string
-}
-
 type Section struct {
 	Title    string
 	Content  string
@@ -49,11 +21,11 @@ type Section struct {
 
 type DisplayImpl struct {
 	spinner   *spinner.Spinner
-	formatter Formatter
+	formatter *ColorFormatter
 	mu        sync.Mutex // Protect spinner operations
 }
 
-func NewManager(version string) Manager {
+func NewManager(version string) *DisplayImpl {
 	s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
 	s.Color("cyan")
 	return &DisplayImpl{
@@ -62,31 +34,29 @@ func NewManager(version string) Manager {
 	}
 }
 
-func (m *DisplayImpl) ShowSection(section Section) {
-	if section.Divider == "" {
-		section.Divider = "------------------------"
+func (m *DisplayImpl) ShowSection(title, content string, opts map[string]string) {
+	divider := opts["divider"]
+	if divider == "" {
+		divider = "------------------------"
 	}
 
-	// Format title with icon if provided
-	title := section.Title
-	if section.Icon != "" {
-		title = fmt.Sprintf("%s %s", section.Icon, section.Title)
+	displayTitle := title
+	if icon := opts["icon"]; icon != "" {
+		displayTitle = fmt.Sprintf("%s %s", icon, title)
 	}
 
-	// Print formatted section
-	fmt.Printf("\n%s\n%s\n", m.formatter.FormatSectionTitle(title), section.Divider)
-	fmt.Println(m.formatter.FormatSectionContent(section.Content))
+	fmt.Printf("\n%s\n%s\n", m.formatter.FormatSectionTitle(displayTitle), divider)
+	if content != "" {
+		fmt.Println(m.formatter.FormatSectionContent(content))
+	}
 }
 
-// ShowNumberedList displays a numbered list with optional descriptions
-func (m *DisplayImpl) ShowNumberedList(items []ListItem) {
+func (m *DisplayImpl) ShowNumberedList(items [][2]string) {
 	for i, item := range items {
-		// Format the main item
-		fmt.Printf("%s", m.formatter.FormatListItem(i+1, item.Content))
-
-		// Format description if present
-		if item.Description != "" {
-			fmt.Printf("%s", m.formatter.FormatListDescription(item.Description))
+		// Pass both index and content to FormatListItem
+		fmt.Printf("%s\n", m.formatter.FormatListItem(i+1, item[0]))
+		if item[1] != "" {
+			fmt.Printf("   %s\n", m.formatter.FormatListDescription(item[1]))
 		}
 	}
 }

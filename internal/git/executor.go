@@ -11,21 +11,24 @@ import (
 	"strings"
 )
 
+type FileChange struct {
+	Path      string `json:"path"`
+	Status    string `json:"status"`
+	Additions int    `json:"additions"`
+	Deletions int    `json:"deletions"`
+}
+
 // GitExecutor implements the Executor interface
 type GitExecutor struct {
-	logger Logger
 }
 
 // NewExecutor creates a new GitExecutor instance
-func NewExecutor(logger Logger) *GitExecutor {
-	return &GitExecutor{
-		logger: logger,
-	}
+func NewExecutor() *GitExecutor {
+	return &GitExecutor{}
 }
 
 func (e *GitExecutor) Execute(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
-	e.logger.Debug("Executing git command: git %s", strings.Join(args, " "))
 
 	// env git use page mode when output is too large
 
@@ -39,7 +42,6 @@ func (e *GitExecutor) Execute(ctx context.Context, args ...string) (string, erro
 	}
 
 	result := cleanOutput(string(output))
-	e.logger.Debug("Git command output: %s", result)
 	return result, nil
 }
 
@@ -126,7 +128,6 @@ func (e *GitExecutor) GetStatus(ctx context.Context) (staged, unstaged []FileCha
 
 	for scanner.Scan() {
 		rawLine := scanner.Text()
-		e.logger.Debug("Raw line: [%s], bytes: %v", rawLine, []byte(rawLine))
 
 		if len(rawLine) < 3 {
 			continue
@@ -134,14 +135,11 @@ func (e *GitExecutor) GetStatus(ctx context.Context) (staged, unstaged []FileCha
 
 		matches := re.FindStringSubmatch(rawLine)
 		if matches == nil {
-			e.logger.Debug("Failed to parse line with regex")
 			continue
 		}
 
 		statusCode := matches[1]
 		path := matches[2]
-
-		e.logger.Debug("Processing line: [%s] statusCode=[%s] path=[%s]", rawLine, statusCode, path)
 
 		indexStatus := statusCode[0]
 		workingStatus := statusCode[1]
@@ -152,7 +150,6 @@ func (e *GitExecutor) GetStatus(ctx context.Context) (staged, unstaged []FileCha
 				Path:   path,
 				Status: getReadableStatus(indexStatus),
 			}
-			e.logger.Debug("Adding staged change: %+v", change)
 			staged = append(staged, change)
 		}
 
@@ -162,7 +159,6 @@ func (e *GitExecutor) GetStatus(ctx context.Context) (staged, unstaged []FileCha
 				Path:   path,
 				Status: getReadableStatus(workingStatus),
 			}
-			e.logger.Debug("Adding unstaged change: %+v", change)
 			unstaged = append(unstaged, change)
 		}
 
@@ -172,7 +168,7 @@ func (e *GitExecutor) GetStatus(ctx context.Context) (staged, unstaged []FileCha
 				Path:   path,
 				Status: "untracked",
 			}
-			e.logger.Debug("Adding untracked file: %+v", change)
+
 			unstaged = append(unstaged, change)
 		}
 	}
@@ -204,7 +200,6 @@ func (e *GitExecutor) GetStatus(ctx context.Context) (staged, unstaged []FileCha
 		}
 	}
 
-	e.logger.Debug("Final status - Staged: %+v, Unstaged: %+v", staged, unstaged)
 	return staged, unstaged, nil
 }
 

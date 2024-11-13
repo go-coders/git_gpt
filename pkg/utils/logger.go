@@ -7,11 +7,6 @@ import (
 	"runtime"
 )
 
-type Logger interface {
-	Debug(format string, args ...interface{})
-	Error(format string, args ...interface{})
-}
-
 type LogMode int
 
 const (
@@ -25,7 +20,7 @@ type LoggerImpl struct {
 }
 
 // NewLogger returns a new Logger implementation
-func NewLogger(debug bool) Logger {
+func NewLogger(debug bool) *LoggerImpl {
 	mode := LogModeProduction
 	if debug {
 		mode = LogModeDebug
