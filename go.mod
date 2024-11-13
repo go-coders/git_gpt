@@ -5,7 +5,6 @@ go 1.20
 require (
 	github.com/briandowns/spinner v1.23.1
 	github.com/fatih/color v1.18.0
-	github.com/go-playground/assert/v2 v2.2.0
 	github.com/pkoukk/tiktoken-go v0.1.7
 	github.com/sashabaranov/go-openai v1.32.5
 	github.com/stretchr/testify v1.8.2

@@ -23,9 +23,8 @@ func NewExecutor() *GitExecutor {
 }
 
 func (e *GitExecutor) Execute(ctx context.Context, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
 
-	// env git use page mode when output is too large
+	cmd := exec.CommandContext(ctx, "git", args...)
 
 	env := append(cmd.Env, "GIT_PAGER=cat", "PAGER=cat", "GIT_TERMINAL_PROMPT=0")
 	cmd.Env = env

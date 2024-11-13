@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/go-coders/git_gpt/pkg/apierrors"
@@ -93,6 +94,7 @@ func (a *ChatAgent) handleExecuteResponse(ctx context.Context, query string, res
 }
 
 func (a *ChatAgent) handleQueryCommands(ctx context.Context, query string, commands []Command) error {
+	a.logger.Debug("handleQueryCommands,Executing commands: %v", commands)
 	results, err := a.executeCommands(ctx, commands)
 	if err != nil {
 		return fmt.Errorf("command execution failed: %w", err)
@@ -125,13 +127,22 @@ func (a *ChatAgent) summarizeResults(ctx context.Context, query string, results 
 	return nil
 }
 
+// handleModificationCommands handles commands that modify the repository
 func (a *ChatAgent) handleModificationCommands(ctx context.Context, commands []Command) error {
 	a.display.ShowWarning("The following commands will modify the repository:")
 
+	// Show commands and their resolved forms
 	for i, cmd := range commands {
 		fmt.Println()
 		cmdStr := fmt.Sprintf("git %s", strings.Join(cmd.Args, " "))
 		a.display.ShowInfo(fmt.Sprintf("Command %d: %s", i+1, cmdStr))
+
+		// Try to resolve any command substitutions for preview
+		resolvedArgs, err := a.processShellCommandArgs(ctx, cmd.Args)
+		if err == nil && !reflect.DeepEqual(resolvedArgs, cmd.Args) {
+			a.display.ShowInfo(fmt.Sprintf("Will execute as: git %s",
+				strings.Join(resolvedArgs, " ")))
+		}
 
 		if cmd.Purpose != "" {
 			a.display.ShowInfo(fmt.Sprintf("Purpose: %s", cmd.Purpose))
@@ -141,6 +152,7 @@ func (a *ChatAgent) handleModificationCommands(ctx context.Context, commands []C
 		}
 	}
 
+	// Get user confirmation
 	confirmed, err := a.promptForConfirmation("\nDo you want to execute these commands? (y/n): ")
 	if err != nil {
 		return err
@@ -151,6 +163,7 @@ func (a *ChatAgent) handleModificationCommands(ctx context.Context, commands []C
 		return nil
 	}
 
+	// Execute commands
 	results, err := a.executeCommands(ctx, commands)
 	if err != nil {
 		return err
@@ -158,7 +171,6 @@ func (a *ChatAgent) handleModificationCommands(ctx context.Context, commands []C
 
 	return a.handleCommandResults(ctx, results)
 }
-
 func (a *ChatAgent) ResetChat() error {
 	systemPrompt, err := a.prompts.GetSystemPrompt()
 	if err != nil {
