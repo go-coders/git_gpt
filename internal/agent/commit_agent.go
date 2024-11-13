@@ -1,130 +1,116 @@
-// internal/agent/commit_agent.go
 package agent
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
-	"github.com/go-coders/git_gpt/internal/git"
+	"github.com/go-coders/git_gpt/internal/common"
 )
 
 type CommitAgent struct {
-	git     GitExecutor
-	llm     LLMClient
-	display DisplayManager
-	prompt  *PromptManager
-	log     Logger
-	reader  *bufio.Reader
+	*BaseAgent
 }
 
-func NewCommitAgent(git GitExecutor, llm LLMClient, display DisplayManager, log Logger) (*CommitAgent, error) {
-
-	prompts, err := NewPromptManager()
+func NewCommitAgent(config AgentConfig) (*CommitAgent, error) {
+	base, err := NewBaseAgent(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize prompt manager: %w", err)
+		return nil, err
 	}
 
 	return &CommitAgent{
-		git:     git,
-		llm:     llm,
-		display: display,
-		prompt:  prompts,
-		log:     log,
-		reader:  bufio.NewReader(os.Stdin),
+		BaseAgent: base,
 	}, nil
 }
 
 // HandleCommit manages the entire commit process
 func (a *CommitAgent) HandleCommit(ctx context.Context) error {
-	for {
-		staged, unstaged, suggestions, err := a.PrepareCommit(ctx, CommitOptions{AutoStage: false})
-		if err != nil {
-			return fmt.Errorf("failed to prepare commit: %w", err)
-		}
+	status, err := a.prepareCommit(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to prepare commit: %w", err)
+	}
 
-		// Check if there are any changes to commit
-		if len(staged) == 0 && len(unstaged) == 0 {
-			a.display.ShowInfo("No changes to commit")
-			return nil
-		}
-
-		// Handle unstaged changes
-		if len(unstaged) > 0 && len(staged) == 0 {
-			cont, err := a.handleUnstagedChanges(ctx, unstaged)
-			if err != nil {
-				return fmt.Errorf("failed to handle unstaged changes: %w", err)
-			}
-			if !cont {
-				return nil
-			}
-			continue
-		}
-
-		// Check for valid suggestions
-		if suggestions == nil || len(suggestions.Suggestions) == 0 {
-			a.display.ShowInfo("No commit suggestions found")
-			return nil
-		}
-
-		// Display changes and get commit message
-		if len(staged) > 0 {
-			a.displayStagedChanges(staged)
-		}
-
-		a.displayCommitSuggestions(suggestions)
-		message, regenerate, err := a.getCommitMessage(suggestions.Suggestions)
-		if err != nil {
-			return err
-		}
-		if regenerate {
-			continue
-		}
-		if message == "" {
-			a.display.ShowInfo("Commit cancelled")
-			return nil
-		}
-
-		// Perform the commit
-		if err := a.Commit(ctx, message); err != nil {
-			return fmt.Errorf("failed to commit: %w", err)
-		}
-
-		a.display.ShowSuccess(fmt.Sprintf("Changes committed successfully with message: %s", message))
+	// Handle different commit scenarios
+	switch {
+	case a.hasNoChanges(status):
+		a.display.ShowInfo("No changes to commit")
 		return nil
+
+	case a.hasOnlyUnstagedChanges(status):
+		shoudCommit, err := a.handleUnstagedChanges(ctx, status.unstaged)
+
+		if err != nil {
+			return fmt.Errorf("failed to handle unstaged changes: %w", err)
+		}
+
+		if !shoudCommit {
+			return nil
+		}
+
+		return a.HandleCommit(ctx)
+
+	case len(status.staged) > 0:
+		return a.processStagedChanges(ctx, status)
+
+	default:
+		return fmt.Errorf("unexpected repository state")
 	}
 }
 
-func (a *CommitAgent) handleUnstagedChanges(ctx context.Context, unstaged []git.FileChange) (bool, error) {
+type commitStatus struct {
+	staged      []common.FileChange
+	unstaged    []common.FileChange
+	suggestions *CommitResponse
+}
+
+func (a *CommitAgent) prepareCommit(ctx context.Context) (*commitStatus, error) {
+	staged, unstaged, err := a.git.GetStatus(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get status: %w", err)
+	}
+
+	var suggestions *CommitResponse
+	if len(staged) > 0 {
+		suggestions, err = a.generateCommitSuggestions(ctx, staged)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &commitStatus{
+		staged:      staged,
+		unstaged:    unstaged,
+		suggestions: suggestions,
+	}, nil
+}
+
+func (a *CommitAgent) hasNoChanges(status *commitStatus) bool {
+	return len(status.staged) == 0 && len(status.unstaged) == 0
+}
+
+func (a *CommitAgent) hasOnlyUnstagedChanges(status *commitStatus) bool {
+	return len(status.unstaged) > 0 && len(status.staged) == 0
+}
+
+func (a *CommitAgent) handleUnstagedChanges(ctx context.Context, unstaged []common.FileChange) (bool, error) {
 	modified, untracked := a.categorizeChanges(unstaged)
 
-	// Display modified files
-	if len(modified) > 0 {
-		fmt.Println("\nModified files:")
-		for _, path := range modified {
-			fmt.Printf("  %s\n", path)
-		}
-	}
-
-	// Display untracked files
-	if len(untracked) > 0 {
-		fmt.Println("\nUntracked files:")
-		for _, path := range untracked {
-			fmt.Printf("  %s\n", path)
-		}
-	}
+	// Display changes
+	a.displayUnstagedChanges(modified, untracked)
 
 	// Prompt for staging
-	if cont, err := a.promptForStaging(); err != nil {
-		return false, err
-	} else if !cont {
+	confirmed, err := a.promptForConfirmation("\nWould you like to stage all changes? (y/n): ")
+	if err != nil {
+		return false, fmt.Errorf("failed to prompt for confirmation: %w", err)
+	}
+	fmt.Println(confirmed, err, "confirmed")
+	if !confirmed {
+		a.display.ShowInfo("Commit cancelled")
 		return false, nil
 	}
 
-	// Stage all changes
+	// Stage changes
 	if err := a.git.StageAll(ctx); err != nil {
 		return false, fmt.Errorf("failed to stage changes: %w", err)
 	}
@@ -133,7 +119,71 @@ func (a *CommitAgent) handleUnstagedChanges(ctx context.Context, unstaged []git.
 	return true, nil
 }
 
-func (a *CommitAgent) categorizeChanges(changes []git.FileChange) (modified, untracked []string) {
+func (a *CommitAgent) processStagedChanges(ctx context.Context, status *commitStatus) error {
+	if status.suggestions == nil || len(status.suggestions.Suggestions) == 0 {
+		a.display.ShowInfo("No commit suggestions found")
+		return nil
+	}
+
+	a.displayStagedChanges(status.staged)
+	a.displayCommitSuggestions(status.suggestions)
+
+	message, regenerate, err := a.getCommitMessage(status.suggestions.Suggestions)
+	if err != nil {
+		return err
+	}
+
+	if regenerate {
+		return a.HandleCommit(ctx)
+	}
+
+	if message == "" {
+		a.display.ShowInfo("Commit cancelled")
+		return nil
+	}
+
+	if err := a.git.Commit(ctx, message); err != nil {
+		return fmt.Errorf("failed to commit: %w", err)
+	}
+
+	a.display.ShowSuccess(fmt.Sprintf("Changes committed successfully with message: %s", message))
+	return nil
+}
+
+func (a *CommitAgent) generateCommitSuggestions(ctx context.Context, files []common.FileChange) (*CommitResponse, error) {
+	a.display.StartSpinner("Analyzing changes and generating suggestions...")
+	defer a.display.StopSpinner()
+
+	diff, err := a.git.GetDiff(ctx, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get diff: %w", err)
+	}
+
+	prompt, err := a.prompts.GetCommitPrompt(files, diff)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate commit prompt: %w", err)
+	}
+
+	response, err := a.llm.Chat(ctx, prompt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get LLM response: %w", err)
+	}
+
+	cleanedResponse := cleanJSONResponse(response)
+	a.logger.Debug("Cleaned LLM response: %s", cleanedResponse)
+
+	var result CommitResponse
+	if err := json.Unmarshal([]byte(cleanedResponse), &result); err != nil {
+		return nil, fmt.Errorf("failed to parse suggestions: %w", err)
+	}
+
+	return &result, nil
+}
+
+func (a *CommitAgent) categorizeChanges(changes []common.FileChange) (modified, untracked []string) {
+	modified = make([]string, 0)
+	untracked = make([]string, 0)
+
 	for _, change := range changes {
 		if change.Status == "untracked" {
 			untracked = append(untracked, change.Path)
@@ -144,31 +194,36 @@ func (a *CommitAgent) categorizeChanges(changes []git.FileChange) (modified, unt
 	return modified, untracked
 }
 
-func (a *CommitAgent) promptForStaging() (bool, error) {
-	fmt.Print("\nWould you like to stage all changes? (y/n): ")
-	input, err := a.reader.ReadString('\n')
-	if err != nil {
-		return false, fmt.Errorf("failed to read input: %w", err)
+func (a *CommitAgent) displayUnstagedChanges(modified, untracked []string) {
+	if len(modified) > 0 {
+		a.display.ShowSection("Modified Files", "", map[string]string{"icon": "📝"})
+		for _, path := range modified {
+			a.display.ShowInfo(fmt.Sprintf("  %s", path))
+		}
 	}
 
-	if strings.TrimSpace(input) != "y" {
-		a.display.ShowInfo("Commit cancelled")
-		return false, nil
+	if len(untracked) > 0 {
+		a.display.ShowSection("Untracked Files", "", map[string]string{"icon": "❓"})
+		for _, path := range untracked {
+			a.display.ShowInfo(fmt.Sprintf("  %s", path))
+		}
 	}
-	return true, nil
 }
 
-func (a *CommitAgent) displayStagedChanges(changes []git.FileChange) {
-	fmt.Println("\n📄 Staged Files:")
-	fmt.Println("------------------------")
+func (a *CommitAgent) displayStagedChanges(changes []common.FileChange) {
+	items := make([][2]string, 0, len(changes))
 	for _, change := range changes {
-		fmt.Printf("%s %s (%d+/%d-)\n",
-			getStatusSymbol(change.Status),
-			change.Path,
-			change.Additions,
-			change.Deletions,
-		)
+		items = append(items, [2]string{
+			fmt.Sprintf("%s %s", getStatusSymbol(change.Status), change.Path),
+			fmt.Sprintf("(%d+/%d-)", change.Additions, change.Deletions),
+		})
 	}
+
+	a.display.ShowSection("Staged Files", "", map[string]string{
+		"icon":    "📄",
+		"divider": "------------------------",
+	})
+	a.display.ShowNumberedList(items)
 }
 
 func (a *CommitAgent) displayCommitSuggestions(suggestions *CommitResponse) {
@@ -177,12 +232,6 @@ func (a *CommitAgent) displayCommitSuggestions(suggestions *CommitResponse) {
 		"divider": "------------------------",
 	})
 
-	// Display suggestions section
-	a.display.ShowSection("Suggested Commit Messages", "", map[string]string{
-		"icon": "💡",
-	})
-
-	// Convert suggestions to list items
 	items := make([][2]string, 0, len(suggestions.Suggestions))
 	for _, suggestion := range suggestions.Suggestions {
 		items = append(items, [2]string{
@@ -190,6 +239,8 @@ func (a *CommitAgent) displayCommitSuggestions(suggestions *CommitResponse) {
 			suggestion.Description,
 		})
 	}
+
+	a.display.ShowSection("Suggested Commit Messages", "", map[string]string{"icon": "💡"})
 	a.display.ShowNumberedList(items)
 }
 
@@ -232,9 +283,11 @@ func (a *CommitAgent) processNumberedSelection(input string, suggestions []Commi
 	if _, err := fmt.Sscanf(input, "%d", &selection); err != nil {
 		return "", false, fmt.Errorf("invalid selection")
 	}
+
 	if selection < 1 || selection > len(suggestions) {
-		return "", false, fmt.Errorf("invalid selection")
+		return "", false, fmt.Errorf("invalid selection: must be between 1 and %d", len(suggestions))
 	}
+
 	return suggestions[selection-1].Message, false, nil
 }
 
@@ -247,69 +300,9 @@ func getStatusSymbol(status string) string {
 		"copied":    "📑",
 		"untracked": "❓",
 	}
+
 	if symbol, ok := symbols[status]; ok {
 		return symbol
 	}
 	return "•"
-}
-
-func (a *CommitAgent) PrepareCommit(ctx context.Context, opts CommitOptions) (staged []git.FileChange, unstaged []git.FileChange, response *CommitResponse, err error) {
-	staged, unstaged, err = a.git.GetStatus(ctx)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to get status: %w", err)
-	}
-
-	// Generate suggestions if we have staged changes
-	if len(staged) > 0 {
-		a.display.StartSpinner("Analyzing changes and generating suggestions...")
-		suggestions, err := a.generateSuggestions(ctx, staged)
-		a.display.StopSpinner()
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to generate suggestions: %w", err)
-		}
-		return staged, unstaged, suggestions, nil
-	}
-
-	return staged, unstaged, nil, nil
-}
-
-// Commit performs the commit operation
-func (a *CommitAgent) Commit(ctx context.Context, message string) error {
-	return a.git.Commit(ctx, message)
-}
-
-func (a *CommitAgent) generateSuggestions(ctx context.Context, files []git.FileChange) (*CommitResponse, error) {
-	diff, err := a.git.GetDiff(ctx, true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get diff: %w", err)
-	}
-
-	prompt, err := a.prompt.GetCommitPrompt(files, diff)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate commit prompt: %w", err)
-	}
-
-	response, err := a.llm.Chat(ctx, prompt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get LLM response: %w", err)
-	}
-
-	cleanedResponse := cleanJSONResponse(response)
-	a.log.Debug("Cleaned LLM response: %s", cleanedResponse)
-
-	var result CommitResponse
-	if err := json.Unmarshal([]byte(cleanedResponse), &result); err != nil {
-		return nil, fmt.Errorf("failed to parse suggestions: %w", err)
-	}
-
-	return &result, nil
-}
-func cleanJSONResponse(response string) string {
-	response = strings.TrimPrefix(response, "```json")
-	response = strings.TrimPrefix(response, "```")
-	response = strings.TrimSuffix(response, "```")
-
-	response = strings.TrimSpace(response)
-
-	return response
 }

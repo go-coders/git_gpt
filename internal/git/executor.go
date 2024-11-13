@@ -9,14 +9,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-)
 
-type FileChange struct {
-	Path      string `json:"path"`
-	Status    string `json:"status"`
-	Additions int    `json:"additions"`
-	Deletions int    `json:"deletions"`
-}
+	"github.com/go-coders/git_gpt/internal/common"
+)
 
 // GitExecutor implements the Executor interface
 type GitExecutor struct {
@@ -116,7 +111,7 @@ func (e *GitExecutor) GetDiff(ctx context.Context, staged bool) (string, error) 
 	return output, nil
 }
 
-func (e *GitExecutor) GetStatus(ctx context.Context) (staged, unstaged []FileChange, err error) {
+func (e *GitExecutor) GetStatus(ctx context.Context) (staged, unstaged []common.FileChange, err error) {
 	statusResult, err := e.Execute(ctx, "status", "--porcelain")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get status: %w", err)
@@ -146,7 +141,7 @@ func (e *GitExecutor) GetStatus(ctx context.Context) (staged, unstaged []FileCha
 
 		// Determine if the change is staged based on indexStatus.
 		if indexStatus != ' ' && indexStatus != '?' {
-			change := FileChange{
+			change := common.FileChange{
 				Path:   path,
 				Status: getReadableStatus(indexStatus),
 			}
@@ -155,7 +150,7 @@ func (e *GitExecutor) GetStatus(ctx context.Context) (staged, unstaged []FileCha
 
 		// Determine if the change is unstaged based on workingStatus.
 		if workingStatus != ' ' && workingStatus != '?' {
-			change := FileChange{
+			change := common.FileChange{
 				Path:   path,
 				Status: getReadableStatus(workingStatus),
 			}
@@ -164,7 +159,7 @@ func (e *GitExecutor) GetStatus(ctx context.Context) (staged, unstaged []FileCha
 
 		// Handle untracked files
 		if indexStatus == '?' && workingStatus == '?' {
-			change := FileChange{
+			change := common.FileChange{
 				Path:   path,
 				Status: "untracked",
 			}

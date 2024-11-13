@@ -1,21 +1,19 @@
-// agent/types.go
 package agent
 
 import (
 	"context"
+	"io"
 
-	"github.com/go-coders/git_gpt/internal/git"
+	"github.com/go-coders/git_gpt/internal/common"
 )
 
-// Core interfaces that the agent package depends on
+// Core interfaces for dependencies
 type (
-	// Logger defines logging capabilities required by agents
 	Logger interface {
 		Debug(format string, args ...interface{})
 		Error(format string, args ...interface{})
 	}
 
-	// DisplayManager handles UI interactions
 	DisplayManager interface {
 		ShowInfo(message string)
 		ShowError(message string)
@@ -28,77 +26,79 @@ type (
 		ShowNumberedList(items [][2]string)
 	}
 
-	// LLMClient defines the language model capabilities
 	LLMClient interface {
 		Chat(ctx context.Context, content string) (string, error)
 		SetSystemMessage(message string)
 		ClearHistory()
 	}
 
-	// GitExecutor defines required git operations
 	GitExecutor interface {
 		Execute(ctx context.Context, args ...string) (string, error)
 		IsGitRepository(ctx context.Context) bool
-		GetStatus(ctx context.Context) (staged []git.FileChange, unstaged []git.FileChange, err error)
+		GetStatus(ctx context.Context) (staged []common.FileChange, unstaged []common.FileChange, err error)
 		StageAll(ctx context.Context) error
 		StageFiles(ctx context.Context, files []string) error
 		Commit(ctx context.Context, message string) error
 		GetDiff(ctx context.Context, staged bool) (string, error)
 	}
+
+	InputReader interface {
+		ReadString(delim byte) (string, error)
+	}
 )
 
-// Section represents a display section with formatting
-type Section struct {
-	Title    string
-	Content  string
-	Icon     string
-	Divider  string
-	Numbered bool
-}
+// Command types
+const (
+	CommandTypeQuery  = "query"
+	CommandTypeModify = "modify"
+)
 
-// ListItem represents an item in a numbered list with description
-type ListItem struct {
-	Content     string
-	Description string
-}
+// Core data structures
+type (
+	Command struct {
+		Type    string   `json:"type"`
+		Action  string   `json:"action"`
+		Args    []string `json:"args"`
+		Purpose string   `json:"purpose"`
+		Impact  string   `json:"impact,omitempty"`
+	}
 
-// Response represents the LLM response structure
-type Response struct {
-	Type     string       `json:"type"`
-	Content  string       `json:"content"`
-	Commands []GitCommand `json:"commands"`
-	Reason   string       `json:"reason"`
-}
+	Response struct {
+		Type        string    `json:"type"`
+		CommandType string    `json:"commandType,omitempty"`
+		Content     string    `json:"content"`
+		Commands    []Command `json:"commands"`
+		Reason      string    `json:"reason"`
+	}
 
-// GitCommand represents a git command with its arguments and purpose
-type GitCommand struct {
-	Command string   `json:"command"`
-	Args    []string `json:"args"`
-	Purpose string   `json:"purpose"`
-}
+	CommandResult struct {
+		Command Command
+		Output  string
+		Error   error
+	}
 
-// CommandResult represents the result of executing a git command
-type CommandResult struct {
-	Command GitCommand
-	Output  string
-	Error   error
-}
+	CommitResponse struct {
+		Summary     string             `json:"summary"`
+		Suggestions []CommitSuggestion `json:"suggestions"`
+	}
 
-// CommitResponse represents the response for commit suggestions
-type CommitResponse struct {
-	Summary     string             `json:"summary"`
-	Suggestions []CommitSuggestion `json:"suggestions"`
-}
+	CommitSuggestion struct {
+		Message     string `json:"message"`
+		Description string `json:"description,omitempty"`
+	}
 
-// CommitSuggestion represents a suggested commit message
-type CommitSuggestion struct {
-	Message     string `json:"message"`
-	Description string `json:"description,omitempty"`
-}
+	CommitOptions struct {
+		AutoStage bool
+	}
 
-// CommitOptions contains options for the commit operation
-type CommitOptions struct {
-	AutoStage bool
-}
+	// Agent configuration
+	AgentConfig struct {
+		Git     GitExecutor
+		LLM     LLMClient
+		Display DisplayManager
+		Logger  Logger
+		Reader  io.Reader
+	}
+)
 
-// Agent represents the main chat agent
+// Validator interface for command validation

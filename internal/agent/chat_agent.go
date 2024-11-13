@@ -1,4 +1,3 @@
-// internal/agent/agent.go
 package agent
 
 import (
@@ -10,100 +9,157 @@ import (
 	"github.com/go-coders/git_gpt/pkg/apierrors"
 )
 
-type Agent struct {
-	git     GitExecutor
-	llm     LLMClient
-	logger  Logger
-	display DisplayManager
-	prompts *PromptManager
+type ChatAgent struct {
+	*BaseAgent
 }
 
-func New(llm LLMClient, git GitExecutor, logger Logger, display DisplayManager) (*Agent, error) {
-
-	prompts, err := NewPromptManager()
+func NewChatAgent(config AgentConfig) (*ChatAgent, error) {
+	base, err := NewBaseAgent(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize prompt manager: %w", err)
+		return nil, err
 	}
-	agent := &Agent{
-		git:     git,
-		llm:     llm,
-		logger:  logger,
-		display: display,
-		prompts: prompts,
+
+	agent := &ChatAgent{
+		BaseAgent: base,
 	}
-	agent.ResetChat()
+
+	if err := agent.ResetChat(); err != nil {
+		return nil, err
+	}
+
 	return agent, nil
 }
 
-func (a *Agent) Chat(ctx context.Context, query string) error {
+func (a *ChatAgent) Chat(ctx context.Context, query string) error {
 	if !a.git.IsGitRepository(ctx) {
 		return apierrors.NewNotGitRepoError()
 	}
 
-	prompt, err := a.prompts.GetGenerateCommandsPrompt(query)
-
+	response, err := a.getCommandResponse(ctx, query)
 	if err != nil {
-		return fmt.Errorf("failed to generate prompt: %w", err)
+		return err
 	}
 
-	a.display.StartSpinner("Thinking...")
-	response, err := a.llm.Chat(ctx, prompt)
+	return a.handleResponse(ctx, query, response)
+}
+
+func (a *ChatAgent) getCommandResponse(ctx context.Context, query string) (Response, error) {
+	prompt, err := a.prompts.GetGenerateCommandsPrompt(query)
+	if err != nil {
+		return Response{}, fmt.Errorf("failed to generate prompt: %w", err)
+	}
+
+	a.display.StartSpinner("Analyzing query...")
+	llmResponse, err := a.llm.Chat(ctx, prompt)
 	a.display.StopSpinner()
 
 	if err != nil {
-		return fmt.Errorf("failed to get response: %w", err)
+		return Response{}, fmt.Errorf("LLM error: %w", err)
 	}
 
-	a.logger.Debug("Response: %s", response)
-
-	var parsedResponse Response
-	response = cleanJSONResponse(response)
-	if err := json.Unmarshal([]byte(response), &parsedResponse); err != nil {
-		return fmt.Errorf("invalid response format: %w", err)
+	var response Response
+	if err := json.Unmarshal([]byte(cleanJSONResponse(llmResponse)), &response); err != nil {
+		return Response{}, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return a.handleResponse(ctx, query, parsedResponse)
+	return response, nil
 }
-func (a *Agent) handleResponse(ctx context.Context, query string, response Response) error {
+
+func (a *ChatAgent) handleResponse(ctx context.Context, query string, response Response) error {
 	switch response.Type {
 	case "answer":
 		a.display.ShowSuccess(response.Content)
 		return nil
+
 	case "execute":
-		results, err := a.executeCommands(ctx, response.Commands)
-		if err != nil {
-			return fmt.Errorf("failed to execute commands: %w", err)
-		}
-		return a.provideFinalAnswer(ctx, query, results)
+		return a.handleExecuteResponse(ctx, query, response)
+
 	default:
 		return fmt.Errorf("unknown response type: %s", response.Type)
 	}
 }
 
-func (a *Agent) provideFinalAnswer(ctx context.Context, query string, results []CommandResult) error {
-	var contextBuilder strings.Builder
-	for _, result := range results {
-		contextBuilder.WriteString(fmt.Sprintf("Command: git %s\n", strings.Join(result.Command.Args, " ")))
-		contextBuilder.WriteString(fmt.Sprintf("Output:\n%s\n\n", result.Output))
+func (a *ChatAgent) handleExecuteResponse(ctx context.Context, query string, response Response) error {
+	switch response.CommandType {
+	case CommandTypeQuery:
+		return a.handleQueryCommands(ctx, query, response.Commands)
+
+	case CommandTypeModify:
+		return a.handleModificationCommands(ctx, response.Commands)
+
+	default:
+		return fmt.Errorf("unknown command type: %s", response.CommandType)
+	}
+}
+
+func (a *ChatAgent) handleQueryCommands(ctx context.Context, query string, commands []Command) error {
+	results, err := a.executeCommands(ctx, commands)
+	if err != nil {
+		return fmt.Errorf("command execution failed: %w", err)
 	}
 
-	prompt, err := a.prompts.GetSummarizeResultsPrompt(query, contextBuilder.String())
+	return a.summarizeResults(ctx, query, results)
+}
+
+func (a *ChatAgent) summarizeResults(ctx context.Context, query string, results []CommandResult) error {
+	var builder strings.Builder
+	for _, result := range results {
+		builder.WriteString(fmt.Sprintf("Command: git %s\n", strings.Join(result.Command.Args, " ")))
+		builder.WriteString(fmt.Sprintf("Output:\n%s\n\n", result.Output))
+	}
+
+	prompt, err := a.prompts.GetSummarizeResultsPrompt(query, builder.String())
 	if err != nil {
 		return fmt.Errorf("failed to generate summary prompt: %w", err)
 	}
 
 	a.display.StartSpinner("Analyzing results...")
-	answer, err := a.llm.Chat(ctx, prompt)
+	summary, err := a.llm.Chat(ctx, prompt)
 	a.display.StopSpinner()
+
 	if err != nil {
-		return fmt.Errorf("failed to generate final answer: %w", err)
+		return fmt.Errorf("failed to generate summary: %w", err)
 	}
 
-	a.display.ShowSuccess(answer)
+	a.display.ShowSuccess(summary)
 	return nil
 }
 
-func (a *Agent) ResetChat() error {
+func (a *ChatAgent) handleModificationCommands(ctx context.Context, commands []Command) error {
+	a.display.ShowWarning("The following commands will modify the repository:")
+
+	for i, cmd := range commands {
+		fmt.Println()
+		cmdStr := fmt.Sprintf("git %s", strings.Join(cmd.Args, " "))
+		a.display.ShowInfo(fmt.Sprintf("Command %d: %s", i+1, cmdStr))
+
+		if cmd.Purpose != "" {
+			a.display.ShowInfo(fmt.Sprintf("Purpose: %s", cmd.Purpose))
+		}
+		if cmd.Impact != "" {
+			a.display.ShowWarning(fmt.Sprintf("Impact: %s", cmd.Impact))
+		}
+	}
+
+	confirmed, err := a.promptForConfirmation("\nDo you want to execute these commands? (y/n): ")
+	if err != nil {
+		return err
+	}
+
+	if !confirmed {
+		a.display.ShowInfo("Operation cancelled")
+		return nil
+	}
+
+	results, err := a.executeCommands(ctx, commands)
+	if err != nil {
+		return err
+	}
+
+	return a.handleCommandResults(ctx, results)
+}
+
+func (a *ChatAgent) ResetChat() error {
 	systemPrompt, err := a.prompts.GetSystemPrompt()
 	if err != nil {
 		return fmt.Errorf("failed to get system prompt: %w", err)
@@ -111,51 +167,5 @@ func (a *Agent) ResetChat() error {
 
 	a.llm.SetSystemMessage(systemPrompt)
 	a.llm.ClearHistory()
-	return nil
-}
-
-func (a *Agent) executeCommands(ctx context.Context, commands []GitCommand) ([]CommandResult, error) {
-	var results []CommandResult
-	for _, cmd := range commands {
-		if err := a.validateGitCommand(cmd); err != nil {
-			return nil, fmt.Errorf("invalid git command: %w", err)
-		}
-
-		// Show the command being executed
-		cmdStr := fmt.Sprintf("git %s", strings.Join(cmd.Args, " "))
-		a.display.ShowCommand(cmdStr)
-
-		// Execute command
-		output, err := a.git.Execute(ctx, cmd.Args...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to execute git command '%s': %w", cmdStr, err)
-		}
-
-		results = append(results, CommandResult{
-			Command: cmd,
-			Output:  output,
-			Error:   err,
-		})
-	}
-	return results, nil
-}
-
-func (a *Agent) validateGitCommand(cmd GitCommand) error {
-	if cmd.Command != "git" {
-		return fmt.Errorf("invalid command type: %s", cmd.Command)
-	}
-
-	if len(cmd.Args) == 0 {
-		return fmt.Errorf("empty git command arguments")
-	}
-
-	// Validate and sanitize format args if present
-	// for i, arg := range cmd.Args {
-	// 	if strings.Contains(arg, "--pretty=format:") || strings.Contains(arg, "--format=") {
-	// 		cmd.Args[i] = strings.ReplaceAll(arg, "--pretty=format:", "--pretty=format:%h - %an, %ar : %s")
-	// 		cmd.Args[i] = strings.ReplaceAll(arg, "--format=", "--format=%h - %an, %ar : %s")
-	// 	}
-	// }
-
 	return nil
 }

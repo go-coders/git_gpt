@@ -7,14 +7,14 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/go-coders/git_gpt/internal/git"
+	"github.com/go-coders/git_gpt/internal/common"
 )
 
 // TemplateData holds all possible data that can be used in templates
 type TemplateData struct {
 	TimeContext    TimeContext
 	Query          string
-	Changes        []git.FileChange
+	Changes        []common.FileChange
 	Diff           string
 	CommandResults string
 }
@@ -50,29 +50,29 @@ When analyzing queries:
 
 	generateCommandsTpl = `Analyze the query and determine the appropriate git commands to execute.
 
-Consider these command patterns:
-1. For file list or general changes:
- - Use git log --name-status: lighter and shows changed files
- - Example: git log --name-status --since="3.days.ago" --until="1.day.ago"
+Command Types:
+1. Query Commands (type: "query"):
+   - Read-only operations that don't modify the repository
+   - Examples: git log, git status, git diff, git show
+   - These will be executed directly
 
-2. For content changes:
- - Use git log -p for specific file or content changes
- - Example: git log -p --since="3.days.ago" path/to/file
+2. Modification Commands (type: "modify"):
+   - Operations that change the repository state
+   - Examples: git commit, git reset, git revert, git checkout, git merge
+   - These require user confirmation before execution
 
-3. For commit info only:
- - Use git log with format string 
- 
-Return a JSON response in one of these two formats:
+Return a JSON response in one of these formats:
 
-If you can answer using existing information:
+1. If you can answer using existing information:
 {
     "type": "answer",
     "content": "Your detailed answer based on the context"
 }
 
-If you need to execute commands:
+2. If you need to execute query commands:
 {
     "type": "execute",
+    "commandType": "query",
     "commands": [
         {
             "command": "git",
@@ -81,6 +81,21 @@ If you need to execute commands:
         }
     ],
     "reason": "Explain why these commands are needed"
+}
+
+3. If suggesting modification commands:
+{
+    "type": "execute",
+    "commandType": "modify",
+    "commands": [
+        {
+            "command": "git",
+            "args": ["command", "args"],
+            "purpose": "explain what this command will modify,the output language is consistent with the query language."
+            "impact": "detailed explanation of the changes this will make, the output language is consistent with the query language.
+        }
+    ],
+    "reason": "Explain why these modifications are suggested"
 }
 
 Query: {{.Query}}`
@@ -188,7 +203,7 @@ func (pm *PromptManager) GetSummarizeResultsPrompt(query, results string) (strin
 	return pm.renderTemplate(pm.summarizeResults, data)
 }
 
-func (pm *PromptManager) GetCommitPrompt(changes []git.FileChange, diff string) (string, error) {
+func (pm *PromptManager) GetCommitPrompt(changes []common.FileChange, diff string) (string, error) {
 	data := TemplateData{
 		Changes: changes,
 		Diff:    diff,

@@ -10,10 +10,12 @@ import (
 )
 
 const (
-	DefaultModel     = "gpt-4o"
-	DefaultMaxTokens = 4000
-	DefaultBaseURL   = "https://api.openai.com/v1"
-	ConfigFileName   = "config.json"
+	DefaultModel            = "gpt-4o"
+	DefaultMaxTokens        = 4000
+	DefaultBaseURL          = "https://api.openai.com/v1"
+	ConfigFileName          = "config.json"
+	DefaultChatTemperture   = 0.2
+	DefaultCommitTemperture = 0.5
 )
 
 type Config struct {
@@ -22,37 +24,53 @@ type Config struct {
 }
 
 type LLMConfig struct {
-	APIKey    string `json:"api_key"`
-	Model     string `json:"model"`
-	BaseURL   string `json:"base_url"`
-	MaxTokens int    `json:"max_tokens"`
+	APIKey           string  `json:"api_key"`
+	Model            string  `json:"model"`
+	BaseURL          string  `json:"base_url"`
+	MaxTokens        int     `json:"max_tokens"`
+	ChatTemperture   float32 `json:"chat_temperture"`
+	CommitTemperture float32 `json:"commit_temperture"`
 }
 
 // Load loads the configuration from the specified path
 // If path is empty, it uses the default config location
 func Load(path ...string) (*Config, error) {
 	configPath := getConfigPath(path...)
-
-	cfg := &Config{
-		LLM: LLMConfig{
-			Model:     DefaultModel,
-			BaseURL:   DefaultBaseURL,
-			MaxTokens: DefaultMaxTokens,
-		},
-		ConfigPath: configPath,
-	}
+	cfg := new(Config)
+	cfg.ConfigPath = configPath
+	cfg.SetDefaultValue()
 
 	if err := cfg.loadFromFile(configPath); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, fmt.Errorf("failed to load config: %w", err)
 		}
-		// If file doesn't exist, return default config
+		cfg.SetDefaultValue()
+
 		return cfg, nil
 	}
 
 	return cfg, nil
 }
 
+func (c *Config) SetDefaultValue() {
+	if c.LLM.Model == "" {
+		c.LLM.Model = DefaultModel
+	}
+	if c.LLM.BaseURL == "" {
+		c.LLM.BaseURL = DefaultBaseURL
+	}
+	if c.LLM.MaxTokens == 0 {
+		c.LLM.MaxTokens = DefaultMaxTokens
+	}
+
+	if c.LLM.ChatTemperture == 0 {
+		c.LLM.ChatTemperture = DefaultChatTemperture
+	}
+
+	if c.LLM.CommitTemperture == 0 {
+		c.LLM.CommitTemperture = DefaultCommitTemperture
+	}
+}
 func (c *Config) loadFromFile(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -98,9 +116,9 @@ func getConfigPath(customPath ...string) string {
 	var configDir string
 	switch runtime.GOOS {
 	case "windows":
-		configDir = filepath.Join(homeDir, "AppData", "Local", "GitChat")
+		configDir = filepath.Join(homeDir, "AppData", "Local", "ggpt")
 	default:
-		configDir = filepath.Join(homeDir, ".config", "gitchat")
+		configDir = filepath.Join(homeDir, ".config", "ggpt")
 	}
 
 	return filepath.Join(configDir, ConfigFileName)

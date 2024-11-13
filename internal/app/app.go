@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/go-coders/git_gpt/internal/agent"
@@ -20,7 +21,7 @@ type Application struct {
 	logger      *utils.LoggerImpl
 	version     string
 	gitClient   *git.GitExecutor
-	agent       *agent.Agent
+	chatAgent   *agent.ChatAgent
 	commitAgent *agent.CommitAgent
 	repl        *REPL
 	mu          sync.RWMutex
@@ -132,7 +133,7 @@ func (a *Application) createLLMClients() (chatLLM, commitLLM *llm.Client, err er
 		BaseURL:       a.config.LLM.BaseURL,
 		Model:         a.config.LLM.Model,
 		MaxTokens:     a.config.LLM.MaxTokens,
-		Temperature:   0.2,
+		Temperature:   a.config.LLM.ChatTemperture,
 		EnableHistory: true,
 	})
 	if err != nil {
@@ -144,7 +145,7 @@ func (a *Application) createLLMClients() (chatLLM, commitLLM *llm.Client, err er
 		APIKey:        a.config.LLM.APIKey,
 		BaseURL:       a.config.LLM.BaseURL,
 		Model:         a.config.LLM.Model,
-		Temperature:   0.2,
+		Temperature:   a.config.LLM.CommitTemperture,
 		EnableHistory: false,
 	})
 	if err != nil {
@@ -155,17 +156,31 @@ func (a *Application) createLLMClients() (chatLLM, commitLLM *llm.Client, err er
 }
 
 func (a *Application) createAgents(chatLLM, commitLLM *llm.Client) error {
-	chat, err := agent.New(chatLLM, a.gitClient, a.logger, a.display)
+	// Create base config for agents
+	baseConfig := agent.AgentConfig{
+		Git:     a.gitClient,
+		Display: a.display,
+		Logger:  a.logger,
+		Reader:  os.Stdin,
+	}
+
+	// Create chat agent
+	chatConfig := baseConfig
+	chatConfig.LLM = chatLLM
+	chat, err := agent.NewChatAgent(chatConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize chat agent: %w", err)
 	}
 
-	commit, err := agent.NewCommitAgent(a.gitClient, commitLLM, a.display, a.logger)
+	// Create commit agent
+	commitConfig := baseConfig
+	commitConfig.LLM = commitLLM
+	commit, err := agent.NewCommitAgent(commitConfig)
 	if err != nil {
 		return fmt.Errorf("failed to initialize commit agent: %w", err)
 	}
 
-	a.agent = chat
+	a.chatAgent = chat
 	a.commitAgent = commit
 
 	return nil

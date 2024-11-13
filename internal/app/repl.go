@@ -76,7 +76,7 @@ func (r *REPL) handleInput(ctx context.Context, input string) error {
 	case strings.TrimSpace(input) == "":
 		return nil
 	default:
-		return r.app.agent.Chat(ctx, input)
+		return r.app.chatAgent.Chat(ctx, input)
 	}
 }
 
@@ -110,6 +110,6 @@ func (r *REPL) handleChangeDirectory(input string) error {
 
 	pwd, _ := os.Getwd()
 	r.app.display.ShowInfo(fmt.Sprintf("Changed to: %s", pwd))
-	r.app.agent.ResetChat()
+	r.app.chatAgent.ResetChat()
 	return nil
 }
