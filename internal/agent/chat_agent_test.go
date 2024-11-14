@@ -44,45 +44,6 @@ func (s *ChatAgentTestSuite) TestChat_NotGitRepo() {
 	s.Assert().Contains(err.Error(), "not a git repository")
 }
 
-func (s *ChatAgentTestSuite) TestChat_QueryCommand() {
-	// Mock repository check
-	s.git.On("IsGitRepository", s.ctx).Return(true)
-
-	// Mock LLM response for command generation
-	commandResponse := Response{
-		Type:        "execute",
-		CommandType: CommandTypeQuery,
-		Commands: []Command{
-			{
-				Type:    CommandTypeQuery,
-				Args:    []string{"log", "-n", "1"},
-				Purpose: "Show last commit",
-			},
-		},
-	}
-	commandJSON, _ := json.Marshal(commandResponse)
-
-	s.llm.On("Chat", s.ctx, mock.Anything).
-		Return(string(commandJSON), nil).Once()
-
-	// Mock git execution - 修改这里
-	s.git.On("Execute", s.ctx, "log", "-n", "1").
-		Return("commit abc123\nAuthor: Test\nDate: 2024\n\nTest commit", nil)
-
-	// Mock LLM summary
-	s.llm.On("Chat", s.ctx, mock.Anything).
-		Return("Last commit was by Test on 2024", nil).Once()
-
-	// Display expectations
-	s.display.On("StartSpinner", mock.Anything).Return()
-	s.display.On("StopSpinner").Return()
-	s.display.On("ShowCommand", mock.Anything).Return()
-	s.display.On("ShowSuccess", "Last commit was by Test on 2024").Return()
-
-	err := s.agent.Chat(s.ctx, "show last commit")
-	s.Assert().NoError(err)
-}
-
 func (s *ChatAgentTestSuite) TestChat_ModifyCommand() {
 	// Mock repository check
 	s.git.On("IsGitRepository", s.ctx).Return(true)

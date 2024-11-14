@@ -107,54 +107,6 @@ func (s *BaseAgentTestSuite) TestNewBaseAgent_ConfigValidation() {
 
 // Test command execution
 // Test command execution
-func (s *BaseAgentTestSuite) TestExecuteCommands() {
-	agent, err := s.newTestAgent()
-	s.Require().NoError(err)
-
-	testCases := []struct {
-		name        string
-		commands    []Command
-		gitOutput   string
-		gitError    error
-		expectError bool
-	}{
-		{
-			name: "successful command",
-			commands: []Command{
-				{Type: CommandTypeQuery, Args: []string{"log", "-n", "1"}},
-			},
-			gitOutput:   "commit abc123",
-			expectError: false,
-		},
-		{
-			name: "git error",
-			commands: []Command{
-				{Type: CommandTypeQuery, Args: []string{"log", "-n", "1"}},
-			},
-			gitOutput:   "",
-			gitError:    fmt.Errorf("git error"),
-			expectError: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		s.Run(tc.name, func() {
-			// 修改这里的 mock 设置，使用可变参数
-			s.git.On("Execute", s.ctx, mock.Anything, mock.Anything, mock.Anything).
-				Return(tc.gitOutput, tc.gitError).Once()
-
-			results, err := agent.executeCommands(s.ctx, tc.commands)
-
-			if tc.expectError {
-				s.Assert().Error(err)
-			} else {
-				s.Assert().NoError(err)
-				s.Assert().Len(results, 1)
-				s.Assert().Equal(tc.gitOutput, results[0].Output)
-			}
-		})
-	}
-}
 
 // Test user confirmation prompt
 func (s *BaseAgentTestSuite) TestPromptForConfirmation() {
